@@ -1,0 +1,445 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "from collections import defaultdict\n",
+    "from intervaltree import Interval, IntervalTree"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "# Ignore while proof readinf: just file paths\n",
+    "ref = \"../references/hg_genome.fasta\"\n",
+    "gtfFile = \"../references/hg_transcriptome.gtf\"\n",
+    "t2gFile = \"../references/tx2gene.tsv\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "# Ignore while proof reading: Parsing GTF to bookkeep the feature corrdinates\n",
+    "gtf = defaultdict(IntervalTree)\n",
+    "with open(gtfFile) as f:\n",
+    "    for line in f:\n",
+    "        if line[0] != '#':\n",
+    "            toks = line.strip().split('\\t')\n",
+    "            chrm = toks[0]\n",
+    "            feature = toks[2]\n",
+    "            start = int(toks[3])\n",
+    "            end = int(toks[4])\n",
+    "            if feature in [\"exon\", \"UTR\"]:\n",
+    "                strand = toks[6]\n",
+    "                tid = toks[-1].split(\";\")[1]\n",
+    "                if \"transcript_id\" not in tid:\n",
+    "                    print \"ERROR\"\n",
+    "                else:\n",
+    "                    tid = tid.replace('transcript_id \"', \"\").strip().rstrip('\"')\n",
+    "                if start != end:\n",
+    "                    gtf[tid].addi(start, end, strand)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "# Ignore while proof readinf: making gene to txp , txp to gene mapping\n",
+    "t2g = pd.read_table(t2gFile, header=None).set_index(0).to_dict()[1]\n",
+    "g2t = defaultdict(set)\n",
+    "for t,g in t2g.items():\n",
+    "    g2t[g].add(t)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "ENSG00000008517.16 set(['ENST00000528163.6', 'ENST00000549213.5', 'ENST00000534748.6', 'ENST00000552936.5', 'ENST00000382213.7', 'ENST00000008180.13', 'ENST00000551513.5', 'ENST00000551122.5', 'ENST00000533097.6', 'ENST00000396887.7', 'ENST00000440815.7', 'ENST00000525228.5', 'ENST00000530538.6', 'ENST00000552664.5', 'ENST00000525643.6', 'ENST00000526464.6', 'ENST00000525377.6', 'ENST00000548807.5', 'ENST00000548246.1', 'ENST00000613483.4', 'ENST00000525003.1', 'ENST00000529550.5', 'ENST00000444393.7', 'ENST00000548476.5', 'ENST00000529699.5', 'ENST00000530890.5', 'ENST00000532247.5', 'ENST00000531965.5', 'ENST00000534507.5', 'ENST00000532086.1', 'ENST00000396890.6', 'ENST00000528652.2', 'ENST00000552356.5', 'ENST00000325568.9', 'ENST00000548652.5']) 35\n"
+     ]
+    }
+   ],
+   "source": [
+    "# extracting name of a human gene with > 20 isoforms\n",
+    "for g, ts in g2t.items():\n",
+    "    if len(ts) > 20 and \"ENSG\" in g:\n",
+    "        print g, ts, len(ts)\n",
+    "        break"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 91,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# important assign the configuration parameters\n",
+    "\n",
+    "# Mean and std-dev for the sampling guassian distribution\n",
+    "# Mean is e^5 and ranges from e^4 - e^6 i.e. 50 - 500 bp\n",
+    "dist_mean = 5\n",
+    "dist_std_dev = 0.5\n",
+    "\n",
+    "# Total Number of reads to simulate for the full simulation\n",
+    "# if multiple transcripts expressed reads will be divided unifromly\n",
+    "num_reads = 100\n",
+    "\n",
+    "# using mean and std_dev to generate `num_reads` x position away from 3' UTR\n",
+    "read_pos = np.random.normal(dist_mean, dist_std_dev, num_reads)\n",
+    "# converting values from exp to distance and taking int\n",
+    "read_pos = np.exp(read_pos).astype(int)\n",
+    "\n",
+    "# gene id we are planning to use\n",
+    "gene = \"ENSG00000008517.16\"\n",
+    "txps = list(g2t[gene])\n",
+    "# num of transcript to consider in this simulation\n",
+    "num_txps = 5\n",
+    "use_txps = [ txps[x] for x in np.random.randint(0, len(txps), num_txps) ]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 93,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def jump_splice_junction(exons, pos):\n",
+    "    global_pos = 0\n",
+    "    sorted_exons = sorted(exons)\n",
+    "    \n",
+    "    # HACK-> if overlapping exons then assume the bigger interval\n",
+    "    remove_exons = set([])\n",
+    "    for exon in exons:\n",
+    "        intvs = exons[exon]\n",
+    "        if len(intvs) > 1:\n",
+    "            # remove the smaller exon's overlapping interval\n",
+    "            max_length_exon = None\n",
+    "            max_length = 0\n",
+    "            for intv in intvs:\n",
+    "                length = intv.end-intv.begin\n",
+    "                if length > max_length or max_length_exon is None:\n",
+    "                    max_length = length\n",
+    "                    max_length_exon = intv\n",
+    "                \n",
+    "                    if max_length_exon != None and max_length_exon.end != intv.end:\n",
+    "                        print \"ERROR: overlapping intervals end does not match\"\n",
+    "            \n",
+    "            # remove exons except the longest one\n",
+    "            for intv in intvs:\n",
+    "                if intv != max_length_exon and intv in sorted_exons:\n",
+    "                    sorted_exons.remove(intv)\n",
+    "    \n",
+    "    # we have to consider the overflow from the splicing junction\n",
+    "    for (begin, end, _) in sorted_exons[::-1]:\n",
+    "        exon_length = end - begin\n",
+    "        if exon_length >= pos:\n",
+    "            global_pos = end - pos\n",
+    "            break\n",
+    "        pos -= exon_length\n",
+    "    if global_pos < sorted_exons[0].begin:\n",
+    "        print \"ERROR: find read end position outside transcript global coordinate\"\n",
+    "\n",
+    "    return global_pos\n",
+    "\n",
+    "# Simulation assumes every query gene is on forward strand\n",
+    "# and all the txp from the query gene are also from fwd strand\n",
+    "def make_eq_class(out):\n",
+    "    eqclasses = defaultdict(lambda: defaultdict(int))\n",
+    "    \n",
+    "    with open(out, 'w') as f:\n",
+    "        # total num of txps to use\n",
+    "        T = len(use_txps)\n",
+    "        f.write(str(T)+\"\\n\")\n",
+    "        \n",
+    "        # uniformly divide read across txps\n",
+    "        num_reads_per_txp = int( num_reads / float(num_txps) )\n",
+    "        use_read_pos_index = 0\n",
+    "        umi_id = 1\n",
+    "        for txp in use_txps:\n",
+    "            for _ in range(num_reads_per_txp):\n",
+    "                # extract one pos from the frag-length distribution\n",
+    "                pos = read_pos[use_read_pos_index]\n",
+    "                use_read_pos_index += 1\n",
+    "\n",
+    "                global_pos_end = jump_splice_junction( gtf[txp], pos )    \n",
+    "                global_pos_start = global_pos_end - 98 # since length of 10x read is 98\n",
+    "\n",
+    "                if not gtf[txp].overlaps(global_pos_start, global_pos_end):\n",
+    "                    print \"ERROR: Read not fully inside the exon consider rerunning simulation\"\n",
+    "                    print (global_pos_start, global_pos_end, pos), txp\n",
+    "                    break\n",
+    "\n",
+    "                eq_label = []\n",
+    "                for ambg_txp_index, ambg_txp in enumerate(use_txps):\n",
+    "                    if gtf[ambg_txp].search( global_pos_start, global_pos_end ):\n",
+    "                        eq_label.append(ambg_txp_index)\n",
+    "\n",
+    "                if len(eq_label) > 0:\n",
+    "                    eqclasses[ tuple(sorted(eq_label)) ][\"u\"+str(umi_id)] += 1\n",
+    "            umi_id += 2\n",
+    "            \n",
+    "        # total num of eqclass\n",
+    "        E = len(eqclasses)\n",
+    "        f.write(str(E)+\"\\n\")\n",
+    "        \n",
+    "        # write txp to gene mapping\n",
+    "        for txp in use_txps:\n",
+    "            f.write(txp + \" \" + t2g[txp] + \"\\n\")\n",
+    "            \n",
+    "        # write the eqclasses\n",
+    "        for labels,counts in eqclasses.items():\n",
+    "            f.write( str(len(labels)) + \" \" )\n",
+    "            for label in labels:\n",
+    "                f.write( str(label) + \" \" )\n",
+    "            for umi, count in counts.items():\n",
+    "                f.write( umi + \" \" + str(count) + \" \")\n",
+    "            f.write(\"\\n\")\n",
+    "\n",
+    "make_eq_class(\"./test_5.txt\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "collapsed": true
+   },
+   "source": [
+    "# from 1 isoform of a gene"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 74,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "('Using File ', 'test_1.txt')\n",
+      "Found 1 Transcripts, 1 Genes, 1 Eqclasses\n",
+      "Imported Transcript To Gene Map:\n",
+      "defaultdict(<type 'str'>, {'ENST00000440815.7': 'ENSG00000008517.16'})\n",
+      "Imported Gene to Transcript Map:\n",
+      "defaultdict(<type 'set'>, {'ENSG00000008517.16': set([0])})\n",
+      "List of Imported Eqclasses\n",
+      "[(0,)]\n",
+      "List of Imported UMI & counts to corresponding eqclass label\n",
+      "[defaultdict(<type 'int'>, {'u1': 100})]\n",
+      "Utools\n",
+      "defaultdict(<function <lambda> at 0x7fb44d7139b0>, {'ENSG00000008517.16': defaultdict(<type 'int'>, {'u1': 100})})\n",
+      "('min_set of txps for Alevin: ', set(['ENST00000440815.7']))\n",
+      "('New Alevin Eqclasses: ', defaultdict(<function <lambda> at 0x7fb44d7139b0>, {(0,): defaultdict(<type 'int'>, {'u1': 100})}))\n",
+      "('min_set of txps for Alevin: ', set(['ENST00000440815.7']))\n",
+      "('New Alevin Eqclasses: ', defaultdict(<function <lambda> at 0x7fb44d7139b0>, {(0,): defaultdict(<type 'int'>, {'u1': 100})}))\n",
+      "Edges for 0 in Alevin_MST\n",
+      "defaultdict(<type 'set'>, {})\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "===================\n",
+      "IGNORE logs above this\n",
+      "===================\n",
+      "Alevin Predictions: \n",
+      "{'ENSG00000008517.16': 1}\n",
+      "Alevin_MST Predictions: \n",
+      "{'ENSG00000008517.16': 1}\n",
+      "Utools Predictions: \n",
+      "{'ENSG00000008517.16': 1}\n",
+      "Kallisto Predictions: \n",
+      "{'ENSG00000008517.16': 1}\n",
+      "CellRanger Predictions: \n",
+      "{'ENSG00000008517.16': 1}\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%bash \n",
+    "python2 Proof.py test_1.txt"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# from 2 isoform of a gene"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 71,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "('Using File ', 'test_2.txt')\n",
+      "Found 2 Transcripts, 1 Genes, 2 Eqclasses\n",
+      "Imported Transcript To Gene Map:\n",
+      "defaultdict(<type 'str'>, {'ENST00000530890.5': 'ENSG00000008517.16', 'ENST00000549213.5': 'ENSG00000008517.16'})\n",
+      "Imported Gene to Transcript Map:\n",
+      "defaultdict(<type 'set'>, {'ENSG00000008517.16': set([0, 1])})\n",
+      "List of Imported Eqclasses\n",
+      "[(0, 1), (1,)]\n",
+      "List of Imported UMI & counts to corresponding eqclass label\n",
+      "[defaultdict(<type 'int'>, {'u1': 50, 'u3': 44}), defaultdict(<type 'int'>, {'u3': 6})]\n",
+      "Utools\n",
+      "defaultdict(<function <lambda> at 0x7fb4eabb99b0>, {'ENSG00000008517.16': defaultdict(<type 'int'>, {'u1': 50, 'u3': 50})})\n",
+      "('min_set of txps for Alevin: ', set(['ENST00000530890.5']))\n",
+      "('New Alevin Eqclasses: ', defaultdict(<function <lambda> at 0x7fb4eabb99b0>, {(1,): defaultdict(<type 'int'>, {'u1': 50, 'u3': 50})}))\n",
+      "('min_set of txps for Alevin: ', set(['ENST00000530890.5']))\n",
+      "('New Alevin Eqclasses: ', defaultdict(<function <lambda> at 0x7fb4eabb99b0>, {(1,): defaultdict(<type 'int'>, {'u1': 50, 'u3': 50})}))\n",
+      "Edges for 1 in Alevin_MST\n",
+      "defaultdict(<type 'set'>, {})\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "===================\n",
+      "IGNORE logs above this\n",
+      "===================\n",
+      "Alevin Predictions: \n",
+      "{'ENSG00000008517.16': 2}\n",
+      "Alevin_MST Predictions: \n",
+      "{'ENSG00000008517.16': 2}\n",
+      "Utools Predictions: \n",
+      "{'ENSG00000008517.16': 2}\n",
+      "Kallisto Predictions: \n",
+      "{'ENSG00000008517.16': 3}\n",
+      "CellRanger Predictions: \n",
+      "{'ENSG00000008517.16': 2}\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%bash \n",
+    "python2 Proof.py test_2.txt"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# from 5 isoform of a gene"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 94,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "('Using File ', 'test_5.txt')\n",
+      "Found 5 Transcripts, 1 Genes, 7 Eqclasses\n",
+      "Imported Transcript To Gene Map:\n",
+      "defaultdict(<type 'str'>, {'ENST00000533097.6': 'ENSG00000008517.16', 'ENST00000534748.6': 'ENSG00000008517.16', 'ENST00000528652.2': 'ENSG00000008517.16', 'ENST00000532247.5': 'ENSG00000008517.16', 'ENST00000444393.7': 'ENSG00000008517.16'})\n",
+      "Imported Gene to Transcript Map:\n",
+      "defaultdict(<type 'set'>, {'ENSG00000008517.16': set([0, 1, 2, 3, 4])})\n",
+      "List of Imported Eqclasses\n",
+      "[(1, 2, 3, 4), (1,), (0, 2, 3), (1, 4), (2, 3), (0, 1, 4), (0, 1, 2, 3)]\n",
+      "List of Imported UMI & counts to corresponding eqclass label\n",
+      "[defaultdict(<type 'int'>, {'u9': 5}), defaultdict(<type 'int'>, {'u3': 18}), defaultdict(<type 'int'>, {'u5': 19, 'u7': 16, 'u1': 19}), defaultdict(<type 'int'>, {'u9': 12}), defaultdict(<type 'int'>, {'u5': 1, 'u7': 4}), defaultdict(<type 'int'>, {'u9': 3}), defaultdict(<type 'int'>, {'u1': 1, 'u3': 2})]\n",
+      "Utools\n",
+      "defaultdict(<function <lambda> at 0x7fbb3d63a9b0>, {'ENSG00000008517.16': defaultdict(<type 'int'>, {'u5': 20, 'u1': 20, 'u7': 20, 'u9': 20, 'u3': 20})})\n",
+      "('min_set of txps for Alevin: ', set(['ENST00000533097.6', 'ENST00000532247.5']))\n",
+      "('New Alevin Eqclasses: ', defaultdict(<function <lambda> at 0x7fbb3d63a9b0>, {(1, 2): defaultdict(<type 'int'>, {'u1': 1, 'u9': 5, 'u3': 2}), (2,): defaultdict(<type 'int'>, {'u5': 20, 'u7': 20, 'u1': 19}), (1,): defaultdict(<type 'int'>, {'u9': 15, 'u3': 18})}))\n",
+      "('min_set of txps for Alevin: ', set(['ENST00000533097.6', 'ENST00000532247.5']))\n",
+      "('New Alevin Eqclasses: ', defaultdict(<function <lambda> at 0x7fbb3d63a9b0>, {(1, 2): defaultdict(<type 'int'>, {'u1': 1, 'u9': 5, 'u3': 2}), (2,): defaultdict(<type 'int'>, {'u5': 20, 'u7': 20, 'u1': 19}), (1,): defaultdict(<type 'int'>, {'u9': 15, 'u3': 18})}))\n",
+      "Edges for 2 in Alevin_MST\n",
+      "defaultdict(<type 'set'>, {})\n",
+      "Edges for 1 in Alevin_MST\n",
+      "defaultdict(<type 'set'>, {})\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "===================\n",
+      "IGNORE logs above this\n",
+      "===================\n",
+      "Alevin Predictions: \n",
+      "{'ENSG00000008517.16': 5}\n",
+      "Alevin_MST Predictions: \n",
+      "{'ENSG00000008517.16': 5}\n",
+      "Utools Predictions: \n",
+      "{'ENSG00000008517.16': 5}\n",
+      "Kallisto Predictions: \n",
+      "{'ENSG00000008517.16': 11}\n",
+      "CellRanger Predictions: \n",
+      "{'ENSG00000008517.16': 5}\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%bash \n",
+    "python2 Proof.py test_5.txt"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 2",
+   "language": "python",
+   "name": "python2"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 2
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython2",
+   "version": "2.7.14"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
