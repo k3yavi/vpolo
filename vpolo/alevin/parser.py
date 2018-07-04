@@ -1,8 +1,9 @@
+from collections import defaultdict
 from struct import Struct
 from pathlib import Path
 import pandas as pd
 import gzip
-
+import sys
 
 def read_quants_bin(base_location):
     '''
@@ -13,28 +14,31 @@ def read_quants_bin(base_location):
     base_location: string
         Path to the folder containing the output of the alevin run
     '''
-    base_location = Path(base_location) / "/alevin"
-    if not base_location.exists():
-        print("{} directory doesn't exist".format( base_location ))
-        exit(1)
+    base_location = Path(base_location)
     if not base_location.is_dir():
         print("{} is not a directory".format( base_location ))
-        exit(1)
+        sys.exit(1)
 
-    quant_file = base_location / "/quants_mat.gz"
+    base_location = base_location / "alevin"
+    print(base_location)
+    if not base_location.exists():
+        print("{} directory doesn't exist".format( base_location ))
+        sys.exit(1)
+
+    quant_file = base_location / "quants_mat.gz"
     if not quant_file.exists():
         print("quant file {} doesn't exist".format( quant_file ))
-        exit(1)
+        sys.exit(1)
 
-    cb_file = base_location / "/quants_mat_rows.txt"
+    cb_file = base_location / "quants_mat_rows.txt"
     if not quant_file.exists():
         print("quant file's index: {} doesn't exist".format( cb_file ))
-        exit(1)
+        sys.exit(1)
 
-    gene_file = base_location / "/quants_mat_cols.txt"
+    gene_file = base_location / "quants_mat_cols.txt"
     if not quant_file.exists():
         print("quant file's header: {} doesn't exist".format( gene_file))
-        exit(1)
+        sys.exit(1)
 
     cb_names = pd.read_table(cb_file, header=None)[0].values
     gene_names = pd.read_table(gene_file, header=None)[0].values
@@ -68,9 +72,9 @@ def read_quants_bin(base_location):
                 umiCounts.append( cell_counts )
             else:
                 print("Found a CB with no read count, something is wrong")
-                exit(1)
+                sys.exit(1)
 
-    alv = pd.DataFrmae(umiCounts)
+    alv = pd.DataFrame(umiCounts)
     alv.columns = gene_names
     alv.index = cb_names
     alv = alv.loc[:, (alv != 0).any(axis=0)]
@@ -86,36 +90,38 @@ def read_quants_csv(base_location):
     base_location: string
         Path to the folder containing the output of the alevin run
     '''
-    base_location = Path(base_location) / "/alevin"
-    if not base_location.exists():
-        print("{} directory doesn't exist".format( base_location ))
-        exit(1)
+    base_location = Path(base_location)
     if not base_location.is_dir():
         print("{} is not a directory".format( base_location ))
-        exit(1)
+        sys.exit(1)
 
-    quant_file = base_location / "/quants_mat.csv"
+    base_location = base_location / "alevin"
+    if not base_location.is_dir():
+        print("{} is not a directory".format( base_location ))
+        sys.exit(1)
+
+    quant_file = base_location / "quants_mat.csv"
     if not quant_file.exists():
         print("quant file {} doesn't exist".format( quant_file ))
-        exit(1)
+        sys.exit(1)
 
-    cb_file = base_location / "/quants_mat_rows.txt"
+    cb_file = base_location / "quants_mat_rows.txt"
     if not cb_file.exists():
         print("quant file's index: {} doesn't exist".format( cb_file ))
-        exit(1)
+        sys.exit(1)
 
-    gene_file = base_location / "/quants_mat_cols.txt"
+    gene_file = base_location / "quants_mat_cols.txt"
     if not gene_file.exists():
         print("quant file's header: {} doesn't exist".format( gene_file ))
-        exit(1)
+        sys.exit(1)
 
     alv = pd.read_table( quant_file, sep=",", header=None )
     index = pd.read_table( cb_file, header=None )
     header = pd.read_table( gene_file, header=None )
 
     alv.drop([len(alv.columns)-1], axis=1, inplace=True)
-    alv.columns = genes[0].values
-    alv.index = names[0].values
+    alv.columns = header[0].values
+    alv.index = index[0].values
     alv = alv.loc[:, (alv != 0).any(axis=0)]
     return alv
 
@@ -128,23 +134,25 @@ def read_eq_bin( base_location ):
     base_location: string
         Path to the folder containing the output of the alevin run
     '''
-    base_location = Path(base_location) / "/alevin"
+    base_location = Path(base_location)
     if not base_location.exists():
         print("{} directory doesn't exist".format( base_location ))
-        exit(1)
+        sys.exit(1)
+
+    base_location = base_location / "alevin"
     if not base_location.is_dir():
         print("{} is not a directory".format( base_location ))
-        exit(1)
+        sys.exit(1)
 
-    eq_file = base_location / "/cell_eq_mat.gz"
+    eq_file = base_location / "cell_eq_mat.gz"
     if not eq_file.exists():
         print("eqclass file {} doesn't exist".format( eq_file ))
-        exit(1)
+        sys.exit(1)
 
-    order_file = base_location / "/cell_eq_order.txt"
+    order_file = base_location / "cell_eq_order.txt"
     if not order_file.exists():
         print("cell order file {} doesn't exist".format( order_file ))
-        exit(1)
+        sys.exit(1)
 
     header_struct = Struct("Q"*2)
     with gzip.open( eq_file ) as f:
@@ -164,7 +172,7 @@ def read_eq_bin( base_location ):
                 break
 
             if num_classes != 0:
-                data_struct = struct.Struct("I"*2*num_classes)
+                data_struct = Struct("I"*2*num_classes)
                 data = data_struct.unpack_from( f.read(data_struct.size) )
                 for i in range(num_classes):
                     eqId = data[i]
@@ -174,7 +182,7 @@ def read_eq_bin( base_location ):
                     umiCounts[bc][eqId] += eqCount
             else:
                 print("Found a CB with no read count, something is wrong")
-                exit(1)
+                sys.exit(1)
 
     print ("making data frame")
     adf = pd.DataFrame(umiCounts).fillna(0)
@@ -183,16 +191,16 @@ def read_eq_bin( base_location ):
     return adf
 
 def read_bfh(base_location, t2gFile, retype="counts"):
-    base_location = Path(base_location) / "/alevin"
-    bfh_file = base_location + "/bfh.txt"
+    base_location = Path(base_location) / "alevin"
+    bfh_file = base_location + "bfh.txt"
     if not bfh_file.exists():
         print("bfh file {} doesn't exist".format( bfh_file ))
-        exit(1)
+        sys.exit(1)
 
     t2g_file = Path(t2gFile)
     if not t2g_file.exists():
         print("t2g file {} doesn't exist".format( t2g_file ))
-        exit(1)
+        sys.exit(1)
 
     t2g = pd.read_table(t2gFile, header=None).set_index(0).to_dict()[1]
 
