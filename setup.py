@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="vpolo",
-    version="0.0.1",
+    version="0.0.5",
     author="Avi Srivastava",
     author_email="asrivastava@cs.stonybrook.edu",
     description="Support packages for Alevin tools",
@@ -18,4 +18,8 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ),
+    install_requires=[
+       'pandas',
+       'pathlib',
+    ]
 )

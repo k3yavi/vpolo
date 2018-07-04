@@ -45,13 +45,13 @@ def read_sf_bin(bf):
         while True:
             count += 1
             if count%100 == 0:
-                print "\r Done reading " + str(count) + " cells",
+                print ("\r Done reading " + str(count) + " cells", end="")
                 sys.stdout.flush()
             try:
                 cell_counts = header_struct.unpack_from( f.read(header_struct.size) )
             except:
-                print "\nRead total " + str(count-1) + " cells"
-                print "Found total " + str(tot_read_count) + " reads"
+                print ("\nRead total " + str(count-1) + " cells")
+                print ("Found total " + str(tot_read_count) + " reads")
                 break
             read_count = 0.0
             for x in cell_counts:
@@ -61,7 +61,7 @@ def read_sf_bin(bf):
                 umiCounts.append( cell_counts )
             else:
                 no_read_count += 1
-    print "No Read Count Cells: "+str(no_read_count)
+    print ("No Read Count Cells: "+str(no_read_count))
     df = pd.DataFrame(umiCounts)
     df.index = cell_names
     df.columns = gene_names
