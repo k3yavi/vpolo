@@ -192,7 +192,7 @@ def read_eq_bin( base_location ):
 
 def read_bfh(base_location, t2gFile, retype="counts"):
     base_location = Path(base_location) / "alevin"
-    bfh_file = base_location + "bfh.txt"
+    bfh_file = base_location / "bfh.txt"
     if not bfh_file.exists():
         print("bfh file {} doesn't exist".format( bfh_file ))
         sys.exit(1)
@@ -202,7 +202,7 @@ def read_bfh(base_location, t2gFile, retype="counts"):
         print("t2g file {} doesn't exist".format( t2g_file ))
         sys.exit(1)
 
-    t2g = pd.read_table(t2gFile, header=None).set_index(0).to_dict()[1]
+    t2g = pd.read_table(t2g_file, header=None).set_index(0).to_dict()[1]
 
     if retype == "counts":
         read_matrix = defaultdict(lambda : defaultdict(int))
@@ -252,7 +252,7 @@ def read_bfh(base_location, t2gFile, retype="counts"):
 
                 read_validator += num_reads
                 if retype == "counts":
-                    read_matrix[bc_name][ sorted(list(genes)) ] += num_reads
+                    read_matrix[bc_name][ tuple(sorted(list(genes))) ] += num_reads
 
             if read_validator != tot_num_reads:
                 print ("ERROR")
