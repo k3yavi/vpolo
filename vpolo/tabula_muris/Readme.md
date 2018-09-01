@@ -11,7 +11,7 @@ git clone https://github.com/k3yavi/vpolo.git
 ```
 
 ```
-⇒  python tmuris.py --help  
+⇒  python vpolo/vpolo/tabula_muris/tmuris.py --help  
 Usage: tmuris.py [OPTIONS]  
 
 Options:
