@@ -10,7 +10,7 @@ click
 
 # Use
 ```
-from vpolo.tabula_muris import tmuris
+git clone https://github.com/k3yavi/vpolo.git
 ```
 
 ```
