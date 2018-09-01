@@ -11,8 +11,8 @@ git clone https://github.com/k3yavi/vpolo.git
 ```
 
 ```
-⇒  python vpolo/vpolo/tabula_muris/tmuris.py --help  
-Usage: tmuris.py [OPTIONS]  
+⇒  python tmuris.py --help
+Usage: tmuris.py [OPTIONS]
 
 Options:
   -t, --tool TEXT                 Currently only tenx.
@@ -20,6 +20,7 @@ Options:
                                   make sure you have write permission
   -o, --organ [Tongue|Liver|Bladder|Kidney|Spleen|Marrow|Heart|Lung|Trachea|Thymus|Mammary|Muscle]
                                   Choose a type of organ
-  -d, --datatype [bam|mtx|fastq]  type of data to download, fastq is WIP
+  -d, --datatype [bam|mtx|fastq]  type of data to download, fastq assumes 10x
+                                  tool bamtofastq is available
   --help                          Show this message and exit.
 ```

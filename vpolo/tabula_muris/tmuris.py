@@ -1,8 +1,8 @@
 import os
 import click
-import shutil
 import sys
 from urllib.request import urlretrieve
+import subprocess
 
 cellranger_base_path = "ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3040nnn/GSM"
 gsm_start = 3040890
@@ -40,7 +40,7 @@ def reporthook(blocknum, blocksize, totalsize):
 @click.option('--out', help='Path to the folder where to save the data; make sure you have write permission')
 @click.option('-o', '--organ', help='Choose a type of organ',
     type=click.Choice(['Tongue', 'Liver', 'Bladder', 'Kidney', 'Spleen', 'Marrow', 'Heart', 'Lung', 'Trachea', 'Thymus', 'Mammary', 'Muscle']))
-@click.option('-d', '--datatype', help='type of data to download, fastq is WIP',
+@click.option('-d', '--datatype', help='type of data to download, fastq assumes 10x tool bamtofastq is available',
     type=click.Choice(['bam', 'mtx', 'fastq']))
 def download(tool, organ, datatype, out):
     if not os.path.exists(out):
@@ -56,7 +56,7 @@ def download(tool, organ, datatype, out):
         organ_indices = [i for i, x in enumerate(organs) if x == organ]
         print("Found " + str(len(organ_indices)) + " data for " + organ)
         print("Downloading: ", [geo_ids[x] for x in organ_indices])
-        if datatype == "bam":
+        if datatype in ["bam", "fastq"]:
             for index in organ_indices:
                 print("Downloading: "+geo_ids[index])
                 url = bam_base_path + str(bam_start+index) + "/10X_" + geo_ids[index] + ".bam"
@@ -64,6 +64,12 @@ def download(tool, organ, datatype, out):
 
                 urlretrieve(url, file_name, reporthook)
                 print("Done Downloading: "+geo_ids[index])
+                if datatype == "fastq":
+                    print("Making fastq: "+geo_ids[index])
+                    fastq_path = os.path.join(out, "fastq")
+                    stdoutdata = subprocess.getoutput("bamtofastq {} {}".format(file_name, fastq_path))
+                    print("stdoutdata: " + stdoutdata.split()[0])
+
         elif datatype == "mtx":
             for index in organ_indices:
                 print("Downloading: "+geo_ids[index])
