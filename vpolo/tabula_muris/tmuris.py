@@ -58,17 +58,20 @@ def download(tool, organ, datatype, out):
         print("Downloading: ", [geo_ids[x] for x in organ_indices])
         if datatype in ["bam", "fastq"]:
             for index in organ_indices:
-                print("Downloading: "+geo_ids[index])
-                url = bam_base_path + str(bam_start+index) + "/10X_" + geo_ids[index] + ".bam"
                 file_name = os.path.join(out, geo_ids[index]+".bam")
+                if os.path.isfile(file_name):
+                    print("{} file already exist".format(file_name))
+                else:
+                    print("Downloading: "+geo_ids[index])
+                    url = bam_base_path + str(bam_start+index) + "/10X_" + geo_ids[index] + ".bam"
 
-                urlretrieve(url, file_name, reporthook)
-                print("Done Downloading: "+geo_ids[index])
+                    urlretrieve(url, file_name, reporthook)
+                    print("Done Downloading: "+geo_ids[index])
                 if datatype == "fastq":
                     print("Making fastq: "+geo_ids[index])
                     fastq_path = os.path.join(out, "fastq")
                     stdoutdata = subprocess.getoutput("bamtofastq {} {}".format(file_name, fastq_path))
-                    print("stdoutdata: " + stdoutdata.split()[0])
+                    print("stdoutdata: {}".format(stdoutdata.split()))
 
         elif datatype == "mtx":
             for index in organ_indices:
