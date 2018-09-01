@@ -1,9 +1,6 @@
 # Motication
 quick and dirty way to download tabula muris data from [czBiohub/Geo](https://github.com/czbiohub/tabula-muris)
 
-# Install
-`pip install vpolo`
-
 # Requirements:
 Python 3  
 click  
