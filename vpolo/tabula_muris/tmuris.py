@@ -23,6 +23,7 @@ bam_start = 6835844
 bam_end = 6835871
 
 def reporthook(blocknum, blocksize, totalsize):
+# https://stackoverflow.com/questions/13881092/download-progressbar-for-python-3
     readsofar = blocknum * blocksize
     if totalsize > 0:
         percent = readsofar * 1e2 / totalsize
@@ -39,7 +40,7 @@ def reporthook(blocknum, blocksize, totalsize):
 @click.option('--out', help='Path to the folder where to save the data; make sure you have write permission')
 @click.option('-o', '--organ', help='Choose a type of organ',
     type=click.Choice(['Tongue', 'Liver', 'Bladder', 'Kidney', 'Spleen', 'Marrow', 'Heart', 'Lung', 'Trachea', 'Thymus', 'Mammary', 'Muscle']))
-@click.option('-d', '--datatype', help='type of data to download, if fastq make sure you have bamtofastq in path',
+@click.option('-d', '--datatype', help='type of data to download, fastq is WIP',
     type=click.Choice(['bam', 'mtx', 'fastq']))
 def download(tool, organ, datatype, out):
     if not os.path.exists(out):
