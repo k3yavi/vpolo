@@ -4,8 +4,6 @@ from pathlib import Path
 import pandas as pd
 import gzip
 import sys
-from __future__ import print_function
-
 def read_tiers_bin(base_location):
     '''
     Read the quants Binary output of Alevin and generates a dataframe
@@ -54,7 +52,7 @@ def read_tiers_bin(base_location):
         while True:
             count += 1
             if count%100 == 0:
-                print ("\r Done reading " + str(count) + " cells"),
+                print ("\r Done reading " + str(count) + " cells", end= "")
                 sys.stdout.flush()
 
             try:
@@ -81,6 +79,8 @@ def read_tiers_bin(base_location):
     alv = alv.loc[:, (alv != 0).any(axis=0)]
 
     return alv
+
+
 
 def read_quants_bin(base_location):
     '''
@@ -130,7 +130,7 @@ def read_quants_bin(base_location):
         while True:
             count += 1
             if count%100 == 0:
-                print ("\r Done reading " + str(count) + " cells"),
+                print ("\r Done reading " + str(count) + " cells", end= "")
                 sys.stdout.flush()
 
             try:
@@ -239,7 +239,7 @@ def read_eq_bin( base_location ):
         while True:
             count += 1
             if count%100 == 0:
-                print ("\r Done reading " + str(count) + " cells"),
+                print ("\r Done reading " + str(count) + " cells", end= "")
                 sys.stdout.flush()
             try:
                 bc, num_classes = header_struct.unpack_from( f.read(header_struct.size) )
