@@ -4,6 +4,83 @@ from pathlib import Path
 import pandas as pd
 import gzip
 import sys
+from __future__ import print_function
+
+def read_tiers_bin(base_location):
+    '''
+    Read the quants Binary output of Alevin and generates a dataframe
+
+    Parameters
+    ----------
+    base_location: string
+        Path to the folder containing the output of the alevin run
+    '''
+    base_location = Path(base_location)
+    if not base_location.is_dir():
+        print("{} is not a directory".format( base_location ))
+        sys.exit(1)
+
+    base_location = base_location / "alevin"
+    print(base_location)
+    if not base_location.exists():
+        print("{} directory doesn't exist".format( base_location ))
+        sys.exit(1)
+
+    quant_file = base_location / "quants_tier_mat.gz"
+    if not quant_file.exists():
+        print("quant file {} doesn't exist".format( quant_file ))
+        sys.exit(1)
+
+    cb_file = base_location / "quants_mat_rows.txt"
+    if not quant_file.exists():
+        print("quant file's index: {} doesn't exist".format( cb_file ))
+        sys.exit(1)
+
+    gene_file = base_location / "quants_mat_cols.txt"
+    if not quant_file.exists():
+        print("quant file's header: {} doesn't exist".format( gene_file))
+        sys.exit(1)
+
+    cb_names = pd.read_table(cb_file, header=None)[0].values
+    gene_names = pd.read_table(gene_file, header=None)[0].values
+    num_genes = len(gene_names)
+
+    header_struct = Struct( "B" * num_genes)
+    with gzip.open( quant_file ) as f:
+        count = 0
+        tot_read_count = 0
+        umiCounts = []
+
+        while True:
+            count += 1
+            if count%100 == 0:
+                print ("\r Done reading " + str(count) + " cells"),
+                sys.stdout.flush()
+
+            try:
+                cell_counts = header_struct.unpack_from( f.read(header_struct.size) )
+            except:
+                print ("\nRead total " + str(count-1) + " cells")
+                print ("Found total " + str(tot_read_count) + " tier sum")
+                break
+
+            read_count = 0.0
+            for x in cell_counts:
+                read_count += float(x)
+            tot_read_count += read_count
+
+            if read_count > 0.0:
+                umiCounts.append( cell_counts )
+            else:
+                print("Found a CB with no single tier > 0, something is wrong")
+                sys.exit(1)
+
+    alv = pd.DataFrame(umiCounts)
+    alv.columns = gene_names
+    alv.index = cb_names
+    alv = alv.loc[:, (alv != 0).any(axis=0)]
+
+    return alv
 
 def read_quants_bin(base_location):
     '''
@@ -53,7 +130,7 @@ def read_quants_bin(base_location):
         while True:
             count += 1
             if count%100 == 0:
-                print ("\r Done reading " + str(count) + " cells", end= "")
+                print ("\r Done reading " + str(count) + " cells"),
                 sys.stdout.flush()
 
             try:
@@ -162,7 +239,7 @@ def read_eq_bin( base_location ):
         while True:
             count += 1
             if count%100 == 0:
-                print ("\r Done reading " + str(count) + " cells", end= "")
+                print ("\r Done reading " + str(count) + " cells"),
                 sys.stdout.flush()
             try:
                 bc, num_classes = header_struct.unpack_from( f.read(header_struct.size) )
