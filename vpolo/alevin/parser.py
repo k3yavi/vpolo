@@ -1,10 +1,12 @@
+from __future__ import print_function
 from collections import defaultdict
 from struct import Struct
-from pathlib import Path
 import pandas as pd
 import gzip
 import sys
-def read_tiers_bin(base_location):
+import os
+
+def read_tiers_bin(base_location, clipped=False):
     '''
     Read the quants Binary output of Alevin and generates a dataframe
 
@@ -13,29 +15,28 @@ def read_tiers_bin(base_location):
     base_location: string
         Path to the folder containing the output of the alevin run
     '''
-    base_location = Path(base_location)
-    if not base_location.is_dir():
+    if not os.path.isdir(base_location):
         print("{} is not a directory".format( base_location ))
         sys.exit(1)
 
-    base_location = base_location / "alevin"
+    base_location = os.path.join(base_location, "alevin")
     print(base_location)
-    if not base_location.exists():
+    if not os.path.exists(base_location):
         print("{} directory doesn't exist".format( base_location ))
         sys.exit(1)
 
-    quant_file = base_location / "quants_tier_mat.gz"
-    if not quant_file.exists():
+    quant_file = os.path.join(base_location, "quants_tier_mat.gz")
+    if not os.path.exists(quant_file):
         print("quant file {} doesn't exist".format( quant_file ))
         sys.exit(1)
 
-    cb_file = base_location / "quants_mat_rows.txt"
-    if not quant_file.exists():
+    cb_file = os.path.join(base_location, "quants_mat_rows.txt")
+    if not os.path.exists(cb_file):
         print("quant file's index: {} doesn't exist".format( cb_file ))
         sys.exit(1)
 
-    gene_file = base_location / "quants_mat_cols.txt"
-    if not quant_file.exists():
+    gene_file = os.path.join(base_location, "quants_mat_cols.txt")
+    if not os.path.exists(gene_file):
         print("quant file's header: {} doesn't exist".format( gene_file))
         sys.exit(1)
 
@@ -52,7 +53,7 @@ def read_tiers_bin(base_location):
         while True:
             count += 1
             if count%100 == 0:
-                print ("\r Done reading " + str(count) + " cells", end= "")
+                print ("\r Done reading " + str(count) + " cells", end="")
                 sys.stdout.flush()
 
             try:
@@ -76,13 +77,14 @@ def read_tiers_bin(base_location):
     alv = pd.DataFrame(umiCounts)
     alv.columns = gene_names
     alv.index = cb_names
-    alv = alv.loc[:, (alv != 0).any(axis=0)]
+    if clipped:
+        alv = alv.loc[:, (alv != 0).any(axis=0)]
 
     return alv
 
 
 
-def read_quants_bin(base_location):
+def read_quants_bin(base_location, clipped=False):
     '''
     Read the quants Binary output of Alevin and generates a dataframe
 
@@ -91,29 +93,28 @@ def read_quants_bin(base_location):
     base_location: string
         Path to the folder containing the output of the alevin run
     '''
-    base_location = Path(base_location)
-    if not base_location.is_dir():
+    if not os.path.isdir(base_location):
         print("{} is not a directory".format( base_location ))
         sys.exit(1)
 
-    base_location = base_location / "alevin"
+    base_location = os.path.join(base_location, "alevin")
     print(base_location)
-    if not base_location.exists():
+    if not os.path.exists(base_location):
         print("{} directory doesn't exist".format( base_location ))
         sys.exit(1)
 
-    quant_file = base_location / "quants_mat.gz"
-    if not quant_file.exists():
+    quant_file = os.path.join(base_location, "quants_mat.gz")
+    if not os.path.exists(quant_file):
         print("quant file {} doesn't exist".format( quant_file ))
         sys.exit(1)
 
-    cb_file = base_location / "quants_mat_rows.txt"
-    if not quant_file.exists():
+    cb_file = os.path.join(base_location, "quants_mat_rows.txt")
+    if not os.path.exists(cb_file):
         print("quant file's index: {} doesn't exist".format( cb_file ))
         sys.exit(1)
 
-    gene_file = base_location / "quants_mat_cols.txt"
-    if not quant_file.exists():
+    gene_file = os.path.join(base_location, "quants_mat_cols.txt")
+    if not os.path.exists(gene_file):
         print("quant file's header: {} doesn't exist".format( gene_file))
         sys.exit(1)
 
@@ -154,11 +155,12 @@ def read_quants_bin(base_location):
     alv = pd.DataFrame(umiCounts)
     alv.columns = gene_names
     alv.index = cb_names
-    alv = alv.loc[:, (alv != 0).any(axis=0)]
+    if clipped:
+        alv = alv.loc[:, (alv != 0).any(axis=0)]
 
     return alv
 
-def read_quants_csv(base_location):
+def read_quants_csv(base_location, clipped=False):
     '''
     Read the quants CSV output of Alevin and generates a dataframe
 
@@ -167,28 +169,27 @@ def read_quants_csv(base_location):
     base_location: string
         Path to the folder containing the output of the alevin run
     '''
-    base_location = Path(base_location)
-    if not base_location.is_dir():
+    if not os.path.isdir(base_location):
         print("{} is not a directory".format( base_location ))
         sys.exit(1)
 
-    base_location = base_location / "alevin"
-    if not base_location.is_dir():
+    base_location = os.path.join(base_location, "alevin")
+    if not os.path.isdir(base_location):
         print("{} is not a directory".format( base_location ))
         sys.exit(1)
 
-    quant_file = base_location / "quants_mat.csv"
-    if not quant_file.exists():
+    quant_file = os.path.join(base_location, "quants_mat.csv")
+    if not os.path.exists(quant_file):
         print("quant file {} doesn't exist".format( quant_file ))
         sys.exit(1)
 
-    cb_file = base_location / "quants_mat_rows.txt"
-    if not cb_file.exists():
+    cb_file = os.path.join(base_location, "quants_mat_rows.txt")
+    if not os.path.exists(cb_file):
         print("quant file's index: {} doesn't exist".format( cb_file ))
         sys.exit(1)
 
-    gene_file = base_location / "quants_mat_cols.txt"
-    if not gene_file.exists():
+    gene_file = os.path.join(base_location, "quants_mat_cols.txt")
+    if not os.path.exists(gene_file):
         print("quant file's header: {} doesn't exist".format( gene_file ))
         sys.exit(1)
 
@@ -199,7 +200,8 @@ def read_quants_csv(base_location):
     alv.drop([len(alv.columns)-1], axis=1, inplace=True)
     alv.columns = header[0].values
     alv.index = index[0].values
-    alv = alv.loc[:, (alv != 0).any(axis=0)]
+    if clipped:
+        alv = alv.loc[:, (alv != 0).any(axis=0)]
     return alv
 
 def read_eq_bin( base_location ):
@@ -211,23 +213,22 @@ def read_eq_bin( base_location ):
     base_location: string
         Path to the folder containing the output of the alevin run
     '''
-    base_location = Path(base_location)
     if not base_location.exists():
         print("{} directory doesn't exist".format( base_location ))
         sys.exit(1)
 
-    base_location = base_location / "alevin"
-    if not base_location.is_dir():
+    base_location = os.path.join(base_location, "alevin")
+    if not os.path.isdir(base_location):
         print("{} is not a directory".format( base_location ))
         sys.exit(1)
 
-    eq_file = base_location / "cell_eq_mat.gz"
-    if not eq_file.exists():
+    eq_file = os.path.join(base_location, "cell_eq_mat.gz")
+    if not os.path.exists(eq_file):
         print("eqclass file {} doesn't exist".format( eq_file ))
         sys.exit(1)
 
-    order_file = base_location / "cell_eq_order.txt"
-    if not order_file.exists():
+    order_file = os.path.join(base_location, "cell_eq_order.txt")
+    if not os.path.exists(order_file):
         print("cell order file {} doesn't exist".format( order_file ))
         sys.exit(1)
 
@@ -268,13 +269,13 @@ def read_eq_bin( base_location ):
     return adf
 
 def read_bfh(base_location, t2gFile, retype="counts"):
-    base_location = Path(base_location) / "alevin"
-    bfh_file = base_location / "bfh.txt"
+    base_location = os.path(base_location, "alevin")
+    bfh_file = os.path.join(base_location, "bfh.txt")
     if not bfh_file.exists():
         print("bfh file {} doesn't exist".format( bfh_file ))
         sys.exit(1)
 
-    t2g_file = Path(t2gFile)
+    t2g_file = os.path(t2gFile)
     if not t2g_file.exists():
         print("t2g file {} doesn't exist".format( t2g_file ))
         sys.exit(1)
@@ -335,3 +336,21 @@ def read_bfh(base_location, t2gFile, retype="counts"):
                 print ("ERROR")
 
     return read_matrix
+
+def read_tenx(base):
+    import scipy.io
+    import csv
+    mat = scipy.io.mmread(os.path.join(base, "matrix.mtx")).toarray()
+
+    genes_path = os.path.join(base, "genes.tsv")
+    gene_ids = [row[0] for row in csv.reader(open(genes_path), delimiter="\t")]
+    gene_names = [row[1] for row in csv.reader(open(genes_path), delimiter="\t")]
+
+    barcodes_path = os.path.join(base, "barcodes.tsv")
+    barcodes = [row[0][:-2] for row in csv.reader(open(barcodes_path), delimiter="\t")]
+
+    cr = pd.DataFrame(mat).T
+    cr.index = barcodes
+    cr.columns = gene_ids
+
+    return cr
