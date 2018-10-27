@@ -5,6 +5,7 @@ import pandas as pd
 import gzip
 import sys
 import os
+from scipy.io import mmread
 
 def read_tiers_bin(base_location, clipped=False):
     '''
@@ -338,19 +339,18 @@ def read_bfh(base_location, t2gFile, retype="counts"):
     return read_matrix
 
 def read_tenx(base):
-    import scipy.io
-    import csv
+
+    mat = scipy.io.mmread(base+"/matrix.mtx").toarray()
     mat = scipy.io.mmread(os.path.join(base, "matrix.mtx")).toarray()
 
     genes_path = os.path.join(base, "genes.tsv")
-    gene_ids = [row[0] for row in csv.reader(open(genes_path), delimiter="\t")]
-    gene_names = [row[1] for row in csv.reader(open(genes_path), delimiter="\t")]
+    genes = pd.read_table(genes_path, header=None)[0].values
 
     barcodes_path = os.path.join(base, "barcodes.tsv")
-    barcodes = [row[0][:-2] for row in csv.reader(open(barcodes_path), delimiter="\t")]
+    barcodes = pd.read_table(barcodes_path, header=None)[0].values
 
     cr = pd.DataFrame(mat).T
     cr.index = barcodes
-    cr.columns = gene_ids
+    cr.columns = genes
 
     return cr
