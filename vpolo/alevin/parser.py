@@ -374,7 +374,7 @@ def read_umi_graph(base_location, out_location, kind="dot"):
         print("{} is not a directory".format(base_location))
         sys.exit(1)
 
-    graph_file = os.path.join(base_location, "cellUmiGraphs.gz")
+    graph_file = os.path.join(base_location, "cell_umi_graphs.gz")
     if not os.path.exists(graph_file):
         print("graph file {} doesn't exist".format(graph_file))
         sys.exit(1)
