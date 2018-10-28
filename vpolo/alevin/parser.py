@@ -214,10 +214,6 @@ def read_eq_bin( base_location ):
     base_location: string
         Path to the folder containing the output of the alevin run
     '''
-    if not base_location.exists():
-        print("{} directory doesn't exist".format( base_location ))
-        sys.exit(1)
-
     base_location = os.path.join(base_location, "alevin")
     if not os.path.isdir(base_location):
         print("{} is not a directory".format( base_location ))
@@ -270,14 +266,18 @@ def read_eq_bin( base_location ):
     return adf
 
 def read_bfh(base_location, t2gFile, retype="counts"):
-    base_location = os.path(base_location, "alevin")
+    base_location = os.path.join(base_location, "alevin")
+    if not os.path.isdir(base_location):
+        print("{} is not a directory".format( base_location ))
+        sys.exit(1)
+
     bfh_file = os.path.join(base_location, "bfh.txt")
-    if not bfh_file.exists():
+    if not os.path.exists(bfh_file):
         print("bfh file {} doesn't exist".format( bfh_file ))
         sys.exit(1)
 
     t2g_file = os.path(t2gFile)
-    if not t2g_file.exists():
+    if not os.path.exists(t2g_file):
         print("t2g file {} doesn't exist".format( t2g_file ))
         sys.exit(1)
 
@@ -354,3 +354,56 @@ def read_tenx(base):
     cr.columns = genes
 
     return cr
+
+def read_umi_graph(base_location, out_location, kind="dot"):
+    '''
+    A function to read the per cell level UMI graph output from Alevin
+    i.e. a file with name cel_umi_graphs.gz and dumps per cell level
+    separate dot(viz) file 
+    '''
+    if not os.path.isdir(base_location):
+        print("{} directory doesn't exist".format(base_location))
+        sys.exit(1)
+
+    if not os.path.isdir(out_location):
+        print("{} directory doesn't exist".format(out_location))
+        sys.exit(1)
+
+    base_location = os.path.join(base_location, "alevin")
+    if not os.path.isdir(base_location):
+        print("{} is not a directory".format(base_location))
+        sys.exit(1)
+
+    graph_file = os.path.join(base_location, "cellUmiGraphs.gz")
+    if not os.path.exists(graph_file):
+        print("graph file {} doesn't exist".format(graph_file))
+        sys.exit(1)
+
+    with gzip.open(graph_file) as file_handle:
+        for cell_index,cell_graph in enumerate(file_handle):
+            toks = cell_graph.decode().strip().split("\t")
+            if kind == "dot":
+                write_dot(toks, os.path.join(out_location, str(cell_index)+".dot.gz"))
+            print("\r processed {} cell".format(cell_index), end="")
+
+def write_dot(toks, file_name):
+    '''
+    write per cell level dot file for each cell separately
+    '''
+    with gzip.open(file_name, 'wb') as f:
+        cell_graph = "digraph {} {{".format(file_name)
+
+        # adding vertices
+        for vid in range(int(toks[0])):
+            cell_graph += "\n" + str(vid)
+
+        #adding edges
+        for edge_group in toks[1:]:
+            edges = edge_group.strip().split(",")
+            cell_graph += "\n{} -> {{ ".format(edges[0])
+            cell_graph += ' '.join(edges[1:])
+            cell_graph += " }"
+
+        cell_graph += "\n}"
+
+        f.write(cell_graph.encode())

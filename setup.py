@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="vpolo",
-    version="0.1.4",
+    version="0.1.6",
     author="Avi Srivastava",
     author_email="asrivastava@cs.stonybrook.edu",
     description="Support packages for Alevin tools",
@@ -20,7 +20,6 @@ setuptools.setup(
     ),
     install_requires=[
        'pandas',
-       'scipy',
-       'csv'
+       'scipy'
     ]
 )
