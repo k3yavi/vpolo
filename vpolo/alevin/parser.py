@@ -339,9 +339,11 @@ def read_bfh(base_location, t2gFile, retype="counts"):
     return read_matrix
 
 def read_tenx(base):
-
-    mat = scipy.io.mmread(base+"/matrix.mtx").toarray()
-    mat = scipy.io.mmread(os.path.join(base, "matrix.mtx")).toarray()
+    '''
+    Specify the path to the folder containing matrix.mtx file
+    '''
+    mat = mmread(base+"/matrix.mtx").toarray()
+    mat = mmread(os.path.join(base, "matrix.mtx")).toarray()
 
     genes_path = os.path.join(base, "genes.tsv")
     genes = pd.read_table(genes_path, header=None)[0].values
@@ -350,16 +352,23 @@ def read_tenx(base):
     barcodes = pd.read_table(barcodes_path, header=None)[0].values
 
     cr = pd.DataFrame(mat).T
-    cr.index = barcodes
+    cr.index = [x.strip().split("-")[0] for x in barcodes]
     cr.columns = genes
 
     return cr
+
+def read_umi_tools(infile):
+    '''
+    Specify the umi_tools count output file
+    '''
+    naive = pd.read_table(infile, index_col=0)
+    return naive.T
 
 def read_umi_graph(base_location, out_location, kind="dot"):
     '''
     A function to read the per cell level UMI graph output from Alevin
     i.e. a file with name cel_umi_graphs.gz and dumps per cell level
-    separate dot(viz) file 
+    separate dot(viz) file
     '''
     if not os.path.isdir(base_location):
         print("{} directory doesn't exist".format(base_location))
@@ -374,7 +383,7 @@ def read_umi_graph(base_location, out_location, kind="dot"):
         print("{} is not a directory".format(base_location))
         sys.exit(1)
 
-    graph_file = os.path.join(base_location, "cellUmiGraphs.gz")
+    graph_file = os.path.join(base_location, "cell_umi_graphs.gz")
     if not os.path.exists(graph_file):
         print("graph file {} doesn't exist".format(graph_file))
         sys.exit(1)
@@ -382,8 +391,9 @@ def read_umi_graph(base_location, out_location, kind="dot"):
     with gzip.open(graph_file) as file_handle:
         for cell_index,cell_graph in enumerate(file_handle):
             toks = cell_graph.decode().strip().split("\t")
+            fname = toks[0].strip()
             if kind == "dot":
-                write_dot(toks, os.path.join(out_location, str(cell_index)+".dot.gz"))
+                write_dot(toks[1:], os.path.join(out_location, fname+".dot.gz"))
             print("\r processed {} cell".format(cell_index), end="")
 
 def write_dot(toks, file_name):
