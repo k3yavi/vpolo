@@ -342,14 +342,39 @@ def read_tenx(base):
     '''
     Specify the path to the folder containing matrix.mtx file
     '''
-    mat = mmread(base+"/matrix.mtx").toarray()
-    mat = mmread(os.path.join(base, "matrix.mtx")).toarray()
+    cr = pd.DataFrame(mat).T
+    cr.index = [x.strip().split("-")[0] for x in barcodes]
+    cr.columns = genes
 
-    genes_path = os.path.join(base, "genes.tsv")
-    genes = pd.read_table(genes_path, header=None)[0].values
+    return cr
 
-    barcodes_path = os.path.join(base, "barcodes.tsv")
-    barcodes = pd.read_table(barcodes_path, header=None)[0].values
+def read_tenx(base, version=2):
+    '''
+    Specify the path to the folder containing matrix.mtx file
+    '''
+    if version == 2:
+        mat = mmread(os.path.join(base, "matrix.mtx")).toarray()
+
+        genes_path = os.path.join(base, "genes.tsv")
+        genes = pd.read_table(genes_path, header=None)[0].values
+
+        barcodes_path = os.path.join(base, "barcodes.tsv")
+        barcodes = pd.read_table(barcodes_path, header=None)[0].values
+    elif version == 3:
+        mat_file = os.path.join(base, "matrix.mtx.gz")
+
+        with gzip.open(mat_file) as f:
+            mat = mmread(f).toarray()
+
+        genes_path = os.path.join(base, "features.tsv.gz")
+        with gzip.open(genes_path) as f:
+            genes = pd.read_table(f, header=None)[0].values
+
+        barcodes_path = os.path.join(base, "barcodes.tsv.gz")
+        with gzip.open(barcodes_path) as f:
+	    barcodes = pd.read_table(f, header=None)[0].values
+    else:
+        print("Wrong version")
 
     cr = pd.DataFrame(mat).T
     cr.index = [x.strip().split("-")[0] for x in barcodes]
