@@ -265,7 +265,7 @@ def read_eq_bin( base_location ):
 
     return adf
 
-def read_bfh(base_location, t2gFile, retype="counts"):
+def read_bfh(base_location, t2g_file, retype="counts"):
     base_location = os.path.join(base_location, "alevin")
     if not os.path.isdir(base_location):
         print("{} is not a directory".format( base_location ))
@@ -276,7 +276,6 @@ def read_bfh(base_location, t2gFile, retype="counts"):
         print("bfh file {} doesn't exist".format( bfh_file ))
         sys.exit(1)
 
-    t2g_file = os.path(t2gFile)
     if not os.path.exists(t2g_file):
         print("t2g file {} doesn't exist".format( t2g_file ))
         sys.exit(1)
@@ -338,16 +337,6 @@ def read_bfh(base_location, t2gFile, retype="counts"):
 
     return read_matrix
 
-def read_tenx(base):
-    '''
-    Specify the path to the folder containing matrix.mtx file
-    '''
-    cr = pd.DataFrame(mat).T
-    cr.index = [x.strip().split("-")[0] for x in barcodes]
-    cr.columns = genes
-
-    return cr
-
 def read_tenx(base, version=2):
     '''
     Specify the path to the folder containing matrix.mtx file
@@ -362,7 +351,6 @@ def read_tenx(base, version=2):
         barcodes = pd.read_table(barcodes_path, header=None)[0].values
     elif version == 3:
         mat_file = os.path.join(base, "matrix.mtx.gz")
-
         with gzip.open(mat_file) as f:
             mat = mmread(f).toarray()
 
@@ -372,7 +360,7 @@ def read_tenx(base, version=2):
 
         barcodes_path = os.path.join(base, "barcodes.tsv.gz")
         with gzip.open(barcodes_path) as f:
-	    barcodes = pd.read_table(f, header=None)[0].values
+            barcodes = pd.read_table(f, header=None)[0].values
     else:
         print("Wrong version")
 
