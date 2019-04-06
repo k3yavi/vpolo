@@ -41,8 +41,8 @@ def read_tiers_bin(base_location, clipped=False):
         print("quant file's header: {} doesn't exist".format( gene_file))
         sys.exit(1)
 
-    cb_names = pd.read_table(cb_file, header=None)[0].values
-    gene_names = pd.read_table(gene_file, header=None)[0].values
+    cb_names = pd.read_csv(cb_file, header=None)[0].values
+    gene_names = pd.read_csv(gene_file, header=None)[0].values
     num_genes = len(gene_names)
 
     header_struct = Struct( "B" * num_genes)
@@ -83,7 +83,100 @@ def read_tiers_bin(base_location, clipped=False):
 
     return alv
 
+def read_quants_sparse_bin(base_location, clipped=False):
+    '''
+    Read the quants Sparse Binary output of Alevin and generates a dataframe
+    Parameters
+    ----------
+    base_location: string
+        Path to the folder containing the output of the alevin run
+    '''
+    if not os.path.isdir(base_location):
+        print("{} is not a directory".format( base_location ))
+        sys.exit(1)
 
+    base_location = os.path.join(base_location, "alevin")
+    print(base_location)
+    if not os.path.exists(base_location):
+        print("{} directory doesn't exist".format( base_location ))
+        sys.exit(1)
+
+    quant_file = os.path.join(base_location, "quants_mat.gz")
+    if not os.path.exists(quant_file):
+        print("quant file {} doesn't exist".format( quant_file ))
+        sys.exit(1)
+
+    cb_file = os.path.join(base_location, "quants_mat_rows.txt")
+    if not os.path.exists(cb_file):
+        print("quant file's index: {} doesn't exist".format( cb_file ))
+        sys.exit(1)
+
+    gene_file = os.path.join(base_location, "quants_mat_cols.txt")
+    if not os.path.exists(gene_file):
+        print("quant file's header: {} doesn't exist".format( gene_file))
+        sys.exit(1)
+
+    cb_names = pd.read_csv(cb_file, header=None)[0].values
+    gene_names = pd.read_csv(gene_file, header=None)[0].values
+    num_genes = len(gene_names)
+    num_entries = int(np.ceil(num_genes/8))
+
+    header_struct = Struct( "B" * num_entries)
+    with gzip.open( quant_file ) as f:
+        line_count = 0
+        tot_umi_count = 0
+        umi_matrix = []
+
+        while True:
+            line_count += 1
+            if line_count%100 == 0:
+                print ("\r Done reading " + str(line_count) + " cells", end= "")
+                sys.stdout.flush()
+            try:
+                num_exp_genes = 0
+                exp_counts = header_struct.unpack_from( f.read(header_struct.size) )
+                for exp_count in exp_counts:
+                    num_exp_genes += bin(exp_count).count("1")
+
+                data_struct = Struct( "d" * num_exp_genes)
+                sparse_cell_counts_vec = list(data_struct.unpack_from( f.read(data_struct.size) ))[::-1]
+                cell_umi_counts = sum(sparse_cell_counts_vec)
+
+            except:
+                print ("\nRead total " + str(line_count-1) + " cells")
+                print ("Found total " + str(tot_umi_count) + " reads")
+                break
+
+            if cell_umi_counts > 0.0:
+                tot_umi_count += cell_umi_counts
+
+                cell_counts_vec = []
+                for exp_count in exp_counts:
+                    for bit in format(exp_count, '08b'):
+                        if len(cell_counts_vec) >= num_genes:
+                            break
+
+                        if bit == '0':
+                            cell_counts_vec.append(0.0)
+                        else:
+                            abund = sparse_cell_counts_vec.pop()
+                            cell_counts_vec.append(abund)
+
+                if len(sparse_cell_counts_vec) > 0:
+                    print("Failure in consumption of data")
+                    print("left with {} entry(ies)".format(len(sparse_cell_counts_vec)))
+                umi_matrix.append( cell_counts_vec )
+            else:
+                print("Found a CB with no read count, something is wrong")
+                sys.exit(1)
+
+    alv = pd.DataFrame(umi_matrix)
+    alv.columns = gene_names
+    alv.index = cb_names
+    if clipped:
+        alv = alv.loc[:, (alv != 0).any(axis=0)]
+
+    return alv
 
 def read_quants_bin(base_location, clipped=False):
     '''
@@ -119,8 +212,8 @@ def read_quants_bin(base_location, clipped=False):
         print("quant file's header: {} doesn't exist".format( gene_file))
         sys.exit(1)
 
-    cb_names = pd.read_table(cb_file, header=None)[0].values
-    gene_names = pd.read_table(gene_file, header=None)[0].values
+    cb_names = pd.read_csv(cb_file, header=None)[0].values
+    gene_names = pd.read_csv(gene_file, header=None)[0].values
     num_genes = len(gene_names)
 
     header_struct = Struct( "d" * num_genes)
@@ -194,9 +287,9 @@ def read_quants_csv(base_location, clipped=False):
         print("quant file's header: {} doesn't exist".format( gene_file ))
         sys.exit(1)
 
-    alv = pd.read_table( quant_file, sep=",", header=None )
-    index = pd.read_table( cb_file, header=None )
-    header = pd.read_table( gene_file, header=None )
+    alv = pd.read_csv( quant_file, sep=",", header=None )
+    index = pd.read_csv( cb_file, header=None)
+    header = pd.read_csv( gene_file, header=None)
 
     alv.drop([len(alv.columns)-1], axis=1, inplace=True)
     alv.columns = header[0].values
@@ -261,7 +354,7 @@ def read_eq_bin( base_location ):
 
     print ("making data frame")
     adf = pd.DataFrame(umiCounts).fillna(0)
-    adf.columns = [x[0] for x in pd.read_table( order_file, header=None).values]
+    adf.columns = [x[0] for x in pd.read_csv( order_file, header=None).values]
 
     return adf
 
@@ -280,7 +373,7 @@ def read_bfh(base_location, t2g_file, retype="counts"):
         print("t2g file {} doesn't exist".format( t2g_file ))
         sys.exit(1)
 
-    t2g = pd.read_table(t2g_file, header=None).set_index(0).to_dict()[1]
+    t2g = pd.read_csv(t2g_file, header=None, sep="\t").set_index(0).to_dict()[1]
 
     if retype == "counts":
         read_matrix = defaultdict(lambda : defaultdict(int))
@@ -345,10 +438,10 @@ def read_tenx(base, version=2):
         mat = mmread(os.path.join(base, "matrix.mtx")).toarray()
 
         genes_path = os.path.join(base, "genes.tsv")
-        genes = pd.read_table(genes_path, header=None)[0].values
+        genes = pd.read_csv(genes_path, header=None)[0].values
 
         barcodes_path = os.path.join(base, "barcodes.tsv")
-        barcodes = pd.read_table(barcodes_path, header=None)[0].values
+        barcodes = pd.read_csv(barcodes_path, header=None)[0].values
     elif version == 3:
         mat_file = os.path.join(base, "matrix.mtx.gz")
         with gzip.open(mat_file) as f:
@@ -356,11 +449,11 @@ def read_tenx(base, version=2):
 
         genes_path = os.path.join(base, "features.tsv.gz")
         with gzip.open(genes_path) as f:
-            genes = pd.read_table(f, header=None)[0].values
+            genes = pd.read_csv(f, header=None)[0].values
 
         barcodes_path = os.path.join(base, "barcodes.tsv.gz")
         with gzip.open(barcodes_path) as f:
-            barcodes = pd.read_table(f, header=None)[0].values
+            barcodes = pd.read_csv(f, header=None)[0].values
     else:
         print("Wrong version")
 
@@ -374,7 +467,7 @@ def read_umi_tools(infile):
     '''
     Specify the umi_tools count output file
     '''
-    naive = pd.read_table(infile, index_col=0)
+    naive = pd.read_csv(infile, index_col=0, sep="\t")
     return naive.T
 
 def read_umi_graph(base_location, out_location, kind="dot"):
