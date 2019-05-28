@@ -1,6 +1,7 @@
 from __future__ import print_function
 from collections import defaultdict
 from struct import Struct
+import numpy as np
 import pandas as pd
 import gzip
 import sys
@@ -143,6 +144,10 @@ def read_quants_bin(base_location, clipped=False, density="sparse"):
     ----------
     base_location: string
         Path to the folder containing the output of the alevin run
+    clipped: bool (default False)
+        Clip off all zero rows and columns
+    density: "[sparse (default), dense ]"
+        Load sparse alevin output or dense output(<v0.14.0)
     '''
     if not os.path.isdir(base_location):
         print("{} is not a directory".format( base_location ))
