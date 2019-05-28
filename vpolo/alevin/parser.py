@@ -126,7 +126,8 @@ def read_tiers_bin(base_location, clipped=False, density="sparse"):
                     sys.exit(1)
         else:
             print("Wrong density parameter: {}".format(density))
-
+            sys.exit(1)
+            
     alv = pd.DataFrame(umi_matrix)
     alv.columns = gene_names
     alv.index = cb_names
@@ -135,7 +136,7 @@ def read_tiers_bin(base_location, clipped=False, density="sparse"):
 
     return alv
 
-def read_quants_sparse_bin(base_location, clipped=False):
+def read_quants_bin(base_location, clipped=False, density="sparse"):
     '''
     Read the quants Sparse Binary output of Alevin and generates a dataframe
     Parameters
@@ -173,132 +174,85 @@ def read_quants_sparse_bin(base_location, clipped=False):
     num_genes = len(gene_names)
     num_entries = int(np.ceil(num_genes/8))
 
-    header_struct = Struct( "B" * num_entries)
     with gzip.open( quant_file ) as f:
         line_count = 0
         tot_umi_count = 0
         umi_matrix = []
+    
+        if density == "sparse":
+            header_struct = Struct( "B" * num_entries)
+            while True:
+                line_count += 1
+                if line_count%100 == 0:
+                    print ("\r Done reading " + str(line_count) + " cells", end= "")
+                    sys.stdout.flush()
+                try:
+                    num_exp_genes = 0
+                    exp_counts = header_struct.unpack_from( f.read(header_struct.size) )
+                    for exp_count in exp_counts:
+                        num_exp_genes += bin(exp_count).count("1")
 
-        while True:
-            line_count += 1
-            if line_count%100 == 0:
-                print ("\r Done reading " + str(line_count) + " cells", end= "")
-                sys.stdout.flush()
-            try:
-                num_exp_genes = 0
-                exp_counts = header_struct.unpack_from( f.read(header_struct.size) )
-                for exp_count in exp_counts:
-                    num_exp_genes += bin(exp_count).count("1")
+                    data_struct = Struct( "f" * num_exp_genes)
+                    sparse_cell_counts_vec = list(data_struct.unpack_from( f.read(data_struct.size) ))[::-1]
+                    cell_umi_counts = sum(sparse_cell_counts_vec)
 
-                data_struct = Struct( "d" * num_exp_genes)
-                sparse_cell_counts_vec = list(data_struct.unpack_from( f.read(data_struct.size) ))[::-1]
-                cell_umi_counts = sum(sparse_cell_counts_vec)
+                except:
+                    print ("\nRead total " + str(line_count-1) + " cells")
+                    print ("Found total " + str(tot_umi_count) + " reads")
+                    break
 
-            except:
-                print ("\nRead total " + str(line_count-1) + " cells")
-                print ("Found total " + str(tot_umi_count) + " reads")
-                break
+                if cell_umi_counts > 0.0:
+                    tot_umi_count += cell_umi_counts
 
-            if cell_umi_counts > 0.0:
-                tot_umi_count += cell_umi_counts
+                    cell_counts_vec = []
+                    for exp_count in exp_counts:
+                        for bit in format(exp_count, '08b'):
+                            if len(cell_counts_vec) >= num_genes:
+                                break
 
-                cell_counts_vec = []
-                for exp_count in exp_counts:
-                    for bit in format(exp_count, '08b'):
-                        if len(cell_counts_vec) >= num_genes:
-                            break
+                            if bit == '0':
+                                cell_counts_vec.append(0.0)
+                            else:
+                                abund = sparse_cell_counts_vec.pop()
+                                cell_counts_vec.append(abund)
 
-                        if bit == '0':
-                            cell_counts_vec.append(0.0)
-                        else:
-                            abund = sparse_cell_counts_vec.pop()
-                            cell_counts_vec.append(abund)
+                    if len(sparse_cell_counts_vec) > 0:
+                        print("Failure in consumption of data")
+                        print("left with {} entry(ies)".format(len(sparse_cell_counts_vec)))
+                    umi_matrix.append( cell_counts_vec )
+                else:
+                    print("Found a CB with no read count, something is wrong")
+                    sys.exit(1)
+        elif density == "dense":
+            header_struct = Struct( "d" * num_genes)
+            while True:
+                line_count += 1
+                if line_count%100 == 0:
+                    print ("\r Done reading " + str(line_count) + " cells", end= "")
+                    sys.stdout.flush()
 
-                if len(sparse_cell_counts_vec) > 0:
-                    print("Failure in consumption of data")
-                    print("left with {} entry(ies)".format(len(sparse_cell_counts_vec)))
-                umi_matrix.append( cell_counts_vec )
-            else:
-                print("Found a CB with no read count, something is wrong")
-                sys.exit(1)
+                try:
+                    cell_counts = header_struct.unpack_from( f.read(header_struct.size) )
+                except:
+                    print ("\nRead total " + str(line_count-1) + " cells")
+                    print ("Found total " + str(tot_umi_count) + " reads")
+                    break
+
+                read_count = 0.0
+                for x in cell_counts:
+                    read_count += float(x)
+                tot_umi_count += read_count
+
+                if read_count > 0.0:
+                    umi_matrix.append( cell_counts )
+                else:
+                    print("Found a CB with no read count, something is wrong")
+                    sys.exit(1)
+        else:
+            print("Wrong density parameter: {}".format(density))
+            sys.exit(1)
 
     alv = pd.DataFrame(umi_matrix)
-    alv.columns = gene_names
-    alv.index = cb_names
-    if clipped:
-        alv = alv.loc[:, (alv != 0).any(axis=0)]
-
-    return alv
-
-def read_quants_bin(base_location, clipped=False):
-    '''
-    Read the quants Binary output of Alevin and generates a dataframe
-
-    Parameters
-    ----------
-    base_location: string
-        Path to the folder containing the output of the alevin run
-    '''
-    if not os.path.isdir(base_location):
-        print("{} is not a directory".format( base_location ))
-        sys.exit(1)
-
-    base_location = os.path.join(base_location, "alevin")
-    print(base_location)
-    if not os.path.exists(base_location):
-        print("{} directory doesn't exist".format( base_location ))
-        sys.exit(1)
-
-    quant_file = os.path.join(base_location, "quants_mat.gz")
-    if not os.path.exists(quant_file):
-        print("quant file {} doesn't exist".format( quant_file ))
-        sys.exit(1)
-
-    cb_file = os.path.join(base_location, "quants_mat_rows.txt")
-    if not os.path.exists(cb_file):
-        print("quant file's index: {} doesn't exist".format( cb_file ))
-        sys.exit(1)
-
-    gene_file = os.path.join(base_location, "quants_mat_cols.txt")
-    if not os.path.exists(gene_file):
-        print("quant file's header: {} doesn't exist".format( gene_file))
-        sys.exit(1)
-
-    cb_names = pd.read_csv(cb_file, header=None)[0].values
-    gene_names = pd.read_csv(gene_file, header=None)[0].values
-    num_genes = len(gene_names)
-
-    header_struct = Struct( "d" * num_genes)
-    with gzip.open( quant_file ) as f:
-        count = 0
-        tot_read_count = 0
-        umiCounts = []
-
-        while True:
-            count += 1
-            if count%100 == 0:
-                print ("\r Done reading " + str(count) + " cells", end= "")
-                sys.stdout.flush()
-
-            try:
-                cell_counts = header_struct.unpack_from( f.read(header_struct.size) )
-            except:
-                print ("\nRead total " + str(count-1) + " cells")
-                print ("Found total " + str(tot_read_count) + " reads")
-                break
-
-            read_count = 0.0
-            for x in cell_counts:
-                read_count += float(x)
-            tot_read_count += read_count
-
-            if read_count > 0.0:
-                umiCounts.append( cell_counts )
-            else:
-                print("Found a CB with no read count, something is wrong")
-                sys.exit(1)
-
-    alv = pd.DataFrame(umiCounts)
     alv.columns = gene_names
     alv.index = cb_names
     if clipped:
