@@ -32,9 +32,11 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
         print("{} directory doesn't exist".format( base_location ))
         sys.exit(1)
 
+    data_type = "f"
     if mtype == "data":
         quant_file = os.path.join(base_location, "quants_mat.gz")
     elif mtype == "tier":
+        data_type = "B"
         quant_file = os.path.join(base_location, "quants_tier_mat.gz")
     elif mtype == "mean":
         quant_file = os.path.join(base_location, "quants_mean_mat.gz")
@@ -67,11 +69,13 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
     num_genes = len(gene_names)
     num_entries = int(np.ceil(num_genes/8))
 
+    
+
     with gzip.open( quant_file ) as f:
         line_count = 0
         tot_umi_count = 0
         umi_matrix = []
-    
+
         if density == "sparse":
             header_struct = Struct( "B" * num_entries)
             while True:
@@ -85,7 +89,7 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
                     for exp_count in exp_counts:
                         num_exp_genes += bin(exp_count).count("1")
 
-                    data_struct = Struct( "f" * num_exp_genes)
+                    data_struct = Struct( data_type * num_exp_genes)
                     sparse_cell_counts_vec = list(data_struct.unpack_from( f.read(data_struct.size) ))[::-1]
                     cell_umi_counts = sum(sparse_cell_counts_vec)
 
