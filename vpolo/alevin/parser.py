@@ -153,50 +153,6 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
 
     return alv
 
-def read_quants_csv(base_location, clipped=False):
-    '''
-    Read the quants CSV output of Alevin and generates a dataframe
-
-    Parameters
-    ----------
-    base_location: string
-        Path to the folder containing the output of the alevin run
-    '''
-    if not os.path.isdir(base_location):
-        print("{} is not a directory".format( base_location ))
-        sys.exit(1)
-
-    base_location = os.path.join(base_location, "alevin")
-    if not os.path.isdir(base_location):
-        print("{} is not a directory".format( base_location ))
-        sys.exit(1)
-
-    quant_file = os.path.join(base_location, "quants_mat.csv")
-    if not os.path.exists(quant_file):
-        print("quant file {} doesn't exist".format( quant_file ))
-        sys.exit(1)
-
-    cb_file = os.path.join(base_location, "quants_mat_rows.txt")
-    if not os.path.exists(cb_file):
-        print("quant file's index: {} doesn't exist".format( cb_file ))
-        sys.exit(1)
-
-    gene_file = os.path.join(base_location, "quants_mat_cols.txt")
-    if not os.path.exists(gene_file):
-        print("quant file's header: {} doesn't exist".format( gene_file ))
-        sys.exit(1)
-
-    alv = pd.read_csv( quant_file, sep=",", header=None )
-    index = pd.read_csv( cb_file, header=None)
-    header = pd.read_csv( gene_file, header=None)
-
-    alv.drop([len(alv.columns)-1], axis=1, inplace=True)
-    alv.columns = header[0].values
-    alv.index = index[0].values
-    if clipped:
-        alv = alv.loc[:, (alv != 0).any(axis=0)]
-    return alv
-
 def read_eq_bin( base_location ):
     '''
     Read the Eqclasses Binary output of Alevin and generates a dataframe
