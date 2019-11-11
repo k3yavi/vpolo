@@ -217,6 +217,68 @@ def read_eq_bin( base_location ):
 
     return adf
 
+def read_arborescences(base_location):
+    '''
+    Read the quants Sparse Binary output of Alevin and generates a dataframe
+    Parameters
+    ----------
+    base_location: string
+        Path to the folder containing the output of the alevin run
+    Returns:
+        a mult-level dictionary with CB -> Gene -> Arborescence_length -> Frequency
+    '''
+    if not os.path.isdir(base_location):
+        print("{} is not a directory".format( base_location ))
+        sys.exit(1)
+
+    base_location = os.path.join(base_location, "alevin")
+    print(base_location)
+    if not os.path.exists(base_location):
+        print("{} directory doesn't exist".format( base_location ))
+        sys.exit(1)
+
+    arbo_file = os.path.join(base_location, "arborescence_dump.txt.gz")
+    if not os.path.exists(arbo_file):
+        print("quant file {} doesn't exist".format( quant_file ))
+        sys.exit(1)
+
+    cell_gene_arbo_data = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    with gzip.open( arbo_file ) as f:
+        cell_count = 0
+        total_fragments = 0
+
+        while True:
+            cell_count += 1
+            if cell_count % 10 == 0:
+                print ("\r Done reading " + str(cell_count) + " cells", end= "")
+                sys.stdout.flush()
+                
+            # each cell has a header line of CB name, number of expressed genes, 
+            # total number of fragments
+            try:
+                (cell_name, num_exp_genes, num_fragments) = f.readline().decode().strip().split()
+                total_fragments += int(num_fragments)
+            except:
+                print("\nRead Total {} cells w/ {} fragments".format(cell_count-1, total_fragments))
+                break
+            
+            # each Cell is followed by gene with at least one mapped fragment
+            # and has gene_id, nuumber_of_types_of arbos, 
+            # [#frags in arbo, frequency of such arbo]+
+            for _ in range(int(num_exp_genes)):
+                (gid, num_arbo_types, *arbo_data) = f.readline().decode().strip().split()
+                gid = int(gid)
+                
+                # iterating over each gene's arborescence data
+                for i in range(int(num_arbo_types)):
+                    arbo_index = 2*i
+                    arbo_length = int(arbo_data[arbo_index])
+                    arbo_frequency = int(arbo_data[arbo_index+1])
+                    
+                    cell_gene_arbo_data[cell_name][gid][arbo_length] += arbo_frequency
+
+    return cell_gene_arbo_data
+
 def read_bfh(base_location, t2g_file, retype="counts"):
     base_location = os.path.join(base_location, "alevin")
     if not os.path.isdir(base_location):
