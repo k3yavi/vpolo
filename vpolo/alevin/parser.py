@@ -26,7 +26,9 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
         print("{} is not a directory".format( base_location ))
         sys.exit(1)
 
-    base_location = os.path.join(base_location, "alevin")
+    if mtype != "fry":
+        base_location = os.path.join(base_location, "alevin")
+    
     print(base_location)
     if not os.path.exists(base_location):
         print("{} directory doesn't exist".format( base_location ))
@@ -35,6 +37,8 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
     data_type = "f"
     if mtype == "data":
         quant_file = os.path.join(base_location, "quants_mat.gz")
+    elif mtype == "fry":
+        quant_file = os.path.join(base_location, "counts.eds.gz")
     elif mtype == "tier":
         data_type = "B"
         quant_file = os.path.join(base_location, "quants_tier_mat.gz")
@@ -52,6 +56,8 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
 
     if mtype in ["mean", "var"]:
         cb_file = os.path.join(base_location, "quants_boot_rows.txt")
+    elif mtype == "fry":
+        cb_file = os.path.join(base_location, "barcodes.txt")
     else:
         cb_file = os.path.join(base_location, "quants_mat_rows.txt")
 
@@ -59,12 +65,19 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
         print("quant file's index: {} doesn't exist".format( cb_file ))
         sys.exit(1)
 
-    gene_file = os.path.join(base_location, "quants_mat_cols.txt")
+    if mtype == "fry":
+        gene_file = os.path.join(base_location, "gene_names.txt")
+    else:
+        gene_file = os.path.join(base_location, "quants_mat_cols.txt")
+    
     if not os.path.exists(gene_file):
         print("quant file's header: {} doesn't exist".format( gene_file))
         sys.exit(1)
 
-    cb_names = pd.read_csv(cb_file, header=None)[0].values
+    if mtype == "fry":
+        cb_names = pd.read_csv(cb_file, header=None, sep='\t')[1].values
+    else:
+        cb_names = pd.read_csv(cb_file, header=None)[0].values
     gene_names = pd.read_csv(gene_file, header=None)[0].values
     num_genes = len(gene_names)
     num_entries = int(np.ceil(num_genes/8))
@@ -156,6 +169,121 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
         alv = alv.loc[:, (alv != 0).any(axis=0)]
 
     return alv
+
+def read_fry_bootstraps_bin(
+    base_location,
+    num_bootstraps,
+):
+    '''
+    Read the bootstraps as EDS output of Alevin and generates a dictionary of 
+    dataframes, one for each cell. The dimension of each dataframe is 
+    num_bootstraps x num_genes
+    Parameters
+    ----------
+    base_location: string
+        Path to the folder containing the output of the alevin run
+    num_bootstraps: int (default False)
+        number of bootstraps
+    density: "[sparse (default), dense ]" (not in use)
+        Load sparse alevin output or dense output(<v0.14.0)
+    mtype: "[data(default), tier, var, mean]" (not in use)
+        Alevin's matrix type to load into memory
+
+    '''
+    if not os.path.isdir(base_location):
+        print("{} is not a directory".format( base_location ))
+        sys.exit(1)
+
+    #base_location = os.path.join(base_location, "alevin")
+    print(base_location)
+    if not os.path.exists(base_location):
+        print("{} directory doesn't exist".format( base_location ))
+        sys.exit(1)
+
+    data_type = "f"
+    quant_file = os.path.join(base_location, "bootstraps.eds.gz")
+
+    if not os.path.exists(quant_file):
+        print("bootstrap file {} doesn't exist".format( quant_file ))
+        sys.exit(1)
+        
+    cb_file = os.path.join(base_location, "barcodes.txt")
+    if not os.path.exists(cb_file):
+        print("quant file's index: {} doesn't exist".format( cb_file ))
+        sys.exit(1)
+    gene_file = os.path.join(base_location, "gene_names.txt")
+    if not os.path.exists(gene_file):
+        print("quant file's header: {} doesn't exist".format( gene_file))
+        sys.exit(1)
+
+    cb_names = pd.read_csv(cb_file, header=None, sep='\t')[1].values
+    gene_names = pd.read_csv(gene_file, header=None)[0].values
+    num_genes = len(gene_names)
+    num_entries = int(np.ceil(num_genes/8))
+    
+    bootstrap_dict = {}
+    cb_index = 0
+    with gzip.open( quant_file ) as f:
+        line_count = 0
+        tot_umi_count = 0
+        umi_matrix = []
+
+        header_struct = Struct( "B" * num_entries)
+
+        while True:
+            line_count += 1
+            if line_count%100 == 0:
+                print ("\r Done reading " + str(line_count) + " cells", end= "")
+                sys.stdout.flush()
+                
+            if line_count%num_bootstraps == 0:
+                alv = pd.DataFrame(umi_matrix)
+                alv.columns = gene_names
+                bootstrap_dict[cb_names[cb_index]] = alv
+                cb_index += 1
+                umi_matrix = []
+                
+            try:
+                num_exp_genes = 0
+                exp_counts = header_struct.unpack_from( f.read(header_struct.size) )
+                for exp_count in exp_counts:
+                    num_exp_genes += bin(exp_count).count("1")
+
+                data_struct = Struct( data_type * num_exp_genes)
+                sparse_cell_counts_vec = list(data_struct.unpack_from( f.read(data_struct.size) ))[::-1]
+                cell_umi_counts = sum(sparse_cell_counts_vec)
+
+            except:
+                print ("\nRead total " + str(line_count-1) + " cells")
+                print ("Found total " + str(tot_umi_count) + " reads")
+                break
+
+            if cell_umi_counts > 0.0:
+                tot_umi_count += cell_umi_counts
+
+                cell_counts_vec = []
+                for exp_count in exp_counts:
+                    for bit in format(exp_count, '08b'):
+                        if len(cell_counts_vec) >= num_genes:
+                            break
+
+                        if bit == '0':
+                            cell_counts_vec.append(0.0)
+                        else:
+                            abund = sparse_cell_counts_vec.pop()
+                            cell_counts_vec.append(abund)
+
+                if len(sparse_cell_counts_vec) > 0:
+                    print("Failure in consumption of data")
+                    print("left with {} entry(ies)".format(len(sparse_cell_counts_vec)))
+                umi_matrix.append( cell_counts_vec )
+            else:
+                print("Found a CB with no read count, something is wrong")
+                sys.exit(1)
+        
+    #alv.index = cb_names
+    return bootstrap_dict
+
 
 def read_eq_bin( base_location ):
     '''
