@@ -6,9 +6,10 @@ import pandas as pd
 import gzip
 import sys
 import os
+import sce
 from scipy.io import mmread
-
-def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"):
+from scipy.sparse import csr_matrix
+def read_quants_bin(base_location, clipped=False, mtype="data", rmode="rust"):
     '''
     Read the quants Sparse Binary output of Alevin and generates a dataframe
     Parameters
@@ -17,8 +18,6 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
         Path to the folder containing the output of the alevin run
     clipped: bool (default False)
         Clip off all zero rows and columns
-    density: "[sparse (default), dense ]"
-        Load sparse alevin output or dense output(<v0.14.0)
     mtype: "[data(default), tier, var, mean]"
         Alevin's matrix type to load into memory
     '''
@@ -26,8 +25,7 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
         print("{} is not a directory".format( base_location ))
         sys.exit(1)
 
-    if mtype != "fry":
-        base_location = os.path.join(base_location, "alevin")
+    base_location = os.path.join(base_location, "alevin")
     
     print(base_location)
     if not os.path.exists(base_location):
@@ -37,8 +35,6 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
     data_type = "f"
     if mtype == "data":
         quant_file = os.path.join(base_location, "quants_mat.gz")
-    elif mtype == "fry":
-        quant_file = os.path.join(base_location, "counts.eds.gz")
     elif mtype == "tier":
         data_type = "B"
         quant_file = os.path.join(base_location, "quants_tier_mat.gz")
@@ -56,8 +52,6 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
 
     if mtype in ["mean", "var"]:
         cb_file = os.path.join(base_location, "quants_boot_rows.txt")
-    elif mtype == "fry":
-        cb_file = os.path.join(base_location, "barcodes.txt")
     else:
         cb_file = os.path.join(base_location, "quants_mat_rows.txt")
 
@@ -65,31 +59,28 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
         print("quant file's index: {} doesn't exist".format( cb_file ))
         sys.exit(1)
 
-    if mtype == "fry":
-        gene_file = os.path.join(base_location, "gene_names.txt")
-    else:
-        gene_file = os.path.join(base_location, "quants_mat_cols.txt")
+    gene_file = os.path.join(base_location, "quants_mat_cols.txt")
     
     if not os.path.exists(gene_file):
-        print("quant file's header: {} doesn't exist".format( gene_file))
+        print("quant file's header: {} doesn't exist".format(gene_file))
         sys.exit(1)
 
-    if mtype == "fry":
-        cb_names = pd.read_csv(cb_file, header=None, sep='\t')[1].values
-    else:
-        cb_names = pd.read_csv(cb_file, header=None)[0].values
+    cb_names = pd.read_csv(cb_file, header=None)[0].values
     gene_names = pd.read_csv(gene_file, header=None)[0].values
     num_genes = len(gene_names)
+    num_cbs = len(cb_names)
     num_entries = int(np.ceil(num_genes/8))
 
-    
+    if rmode == "rust":
+        print("Using rust mode with {} rows and {} columns".format(num_cbs, num_genes))
+        mat = sce.read_quants(quant_file, num_cbs, num_genes)
+        umi_matrix = csr_matrix((mat[2], mat[1], mat[0]), shape=(num_cbs, num_genes)).todense()
+    else:
+        with gzip.open( quant_file ) as f:
+            line_count = 0
+            tot_umi_count = 0
+            umi_matrix = []
 
-    with gzip.open( quant_file ) as f:
-        line_count = 0
-        tot_umi_count = 0
-        umi_matrix = []
-
-        if density == "sparse":
             header_struct = Struct( "B" * num_entries)
             while True:
                 line_count += 1
@@ -133,34 +124,7 @@ def read_quants_bin(base_location, clipped=False, density="sparse", mtype="data"
                 else:
                     print("Found a CB with no read count, something is wrong")
                     sys.exit(1)
-        elif density == "dense":
-            header_struct = Struct( "d" * num_genes)
-            while True:
-                line_count += 1
-                if line_count%100 == 0:
-                    print ("\r Done reading " + str(line_count) + " cells", end= "")
-                    sys.stdout.flush()
 
-                try:
-                    cell_counts = header_struct.unpack_from( f.read(header_struct.size) )
-                except:
-                    print ("\nRead total " + str(line_count-1) + " cells")
-                    print ("Found total " + str(tot_umi_count) + " reads")
-                    break
-
-                read_count = 0.0
-                for x in cell_counts:
-                    read_count += float(x)
-                tot_umi_count += read_count
-
-                if read_count > 0.0:
-                    umi_matrix.append( cell_counts )
-                else:
-                    print("Found a CB with no read count, something is wrong")
-                    sys.exit(1)
-        else:
-            print("Wrong density parameter: {}".format(density))
-            sys.exit(1)
 
     alv = pd.DataFrame(umi_matrix)
     alv.columns = gene_names

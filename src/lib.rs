@@ -1,7 +1,6 @@
 extern crate byteorder;
 extern crate cpython;
 extern crate flate2;
-extern crate sprs;
 
 use std::error::Error;
 use std::fs::File;
@@ -12,8 +11,6 @@ use std::path::Path;
 
 use byteorder::{ByteOrder, LittleEndian};
 use flate2::read::GzDecoder;
-
-use sprs::CsMat;
 
 // exposing the library as a cython for vpolo EDS reading
 use cpython::{py_fn, py_module_initializer, PyResult, Python};
@@ -28,14 +25,19 @@ py_module_initializer!(sce, |py, m| {
     Ok(())
 });
 
-fn read_eds(_py: Python, val: &str, num_rows: u64, num_cols: u64) -> PyResult<String> {
+fn read_eds(_py: Python, val: &str, num_rows: u64, num_cols: u64) -> PyResult<(Vec<usize>, Vec<usize>, Vec<MatValT>)> {
     let fpath = Path::new(val);
-    reader(fpath, num_rows as usize, num_cols as usize).expect("can't read the EDS file");
+    let mat = reader(fpath, num_rows as usize, num_cols as usize).expect("can't read the EDS file");
 
-    Ok("Rust says: ".to_owned() + val)
+    Ok((mat.i, mat.j, mat.k))
 }
 
 pub type MatValT = f32;
+pub struct SpMatrix {
+    pub i: Vec<usize>,
+    pub j: Vec<usize>,
+    pub k: Vec<MatValT>,
+}
 
 fn get_reserved_spaces(
     num_bit_vecs: usize,
@@ -75,7 +77,7 @@ pub fn reader(
     file_path: &Path,
     num_rows: usize,
     num_cols: usize,
-) -> Result<CsMat<MatValT>, Box<dyn Error>> {
+) -> Result<SpMatrix, Box<dyn Error>> {
     // reading the matrix
     let file_handle = File::open(file_path.to_owned())?;
     let buffered = BufReader::new(file_handle);
@@ -127,6 +129,6 @@ pub fn reader(
     }
 
     assert_eq!(global_pointer, total_nnz);
-    let matrix = CsMat::new((num_rows, num_cols), bit_vector_lengths, indices, data);
+    let matrix = SpMatrix{i: bit_vector_lengths, j: indices, k: data};
     Ok(matrix)
 }
