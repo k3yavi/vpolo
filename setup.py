@@ -18,7 +18,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="vpolo",
-    version="0.2.0",
+    version="0.2.1",
     author="Avi Srivastava",
     author_email="asrivastava@cs.stonybrook.edu",
     description="Support packages for Alevin tools",
